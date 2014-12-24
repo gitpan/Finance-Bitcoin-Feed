@@ -1,30 +1,39 @@
 package Finance::Bitcoin::Feed;
 
 use strict;
+use warnings;
+
 use Mojo::Base 'Mojo::EventEmitter';
 use AnyEvent;
-use Finance::Bitcoin::Feed::Site::Hitbtc;
-use Finance::Bitcoin::Feed::Site::BtcChina;
-use Finance::Bitcoin::Feed::Site::CoinSetter;
+use Module::Runtime qw(require_module);
+use Carp;
 
-our $VERSION = '0.01';
+use feature qw(say);
+
+our $VERSION = '0.02';
+
+has 'sites' => sub { [qw(Hitbtc BtcChina CoinSetter LakeBtc)] };
+has 'output' => sub {
+    sub { shift; say join " ", @_ }
+};
 
 sub new {
     my $class = shift;
-    my $self  = $class->SUPER::new();
-    $self->on( 'output', sub { shift; say join " ", @_ } );
+    my $self  = $class->SUPER::new(@_);
+    $self->on( 'output', $self->output );
     return $self;
 }
 
 sub run {
     my $self = shift;
+
     my @sites;
 
-    for my $site_class (
-        qw(Finance::Bitcoin::Feed::Site::Hitbtc Finance::Bitcoin::Feed::Site::BtcChina Finance::Bitcoin::Feed::Site::CoinSetter)
-      )
-    {
-        my $site = $site_class->new();
+    for my $site_class ( @{ $self->sites } ) {
+        $site_class = 'Finance::Bitcoin::Feed::Site::' . $site_class;
+        eval { require_module($site_class) }
+          || croak("No such module $site_class");
+        my $site = $site_class->new;
         $site->on( 'output', sub { shift, $self->emit( 'output', @_ ) } );
         $site->go;
         push @sites, $site;
@@ -52,18 +61,17 @@ Finance::Bitcoin::Feed - Collect bitcoin real-time price from many sites' stream
     
 
     #or custom your stdout
-    my $feed = Finance::Bitcoin::Feed->new;
-    #first unsubscribe the event 'output'
-    $feed->unsubscribe('output');
-    #then listen on 'output' by your callback
     open  my $fh, ">out.txt";
     $fh->autoflush();
-    $feed->on('output', sub{
+    my $feed = Finance::Bitcoin::Feed->new(output => sub{
        my ($self, $site, $currency, $price) = @_;
        print $fh "the price currency $currency on site $site is $price\n";
     });
     # let's go!
     $feed->run();
+
+    #you can also custom which site you want to connect
+    Finance::Bitcoin::Feed->new(sites => [qw(LakeBtc)])->go;
 
 =head1 DESCRIPTION
 
@@ -76,6 +84,8 @@ L<Finance::Bitcoin::Feed> is a bitcoin realtime data source which collect real t
 =item * L<BtcChina|http://btcchina.org/websocket-api-market-data-documentation-en>
 
 =item * L<CoinSetter|https://www.coinsetter.com/api/websockets/last>
+
+=item * L<<lakebtc api|https://www.lakebtc.com/s/api>
 
 =back
 
@@ -91,9 +101,42 @@ The unit of timestamp is ms.
 
 You can custom your output by listen on the event L<output> and modify the data it received.
 
+Note the followiing sites doesn't give the timestamp. So the timestamp in the result will be 0:
+
+LakeBtc
+
 =head1 METHODS
 
 This class inherits all methods from L<Mojo::EventEmitter>
+
+=head2 new
+
+This method have two arguments by which you can costumize the behavior of the feed:
+
+=head3 sites
+
+which sites you want to connect. It is in fact the array reference of  module names of Finance::Bitcoin::Feed::Site::*. Now it have 4 modules:
+Hitbtc
+BtcChina
+CoinSetter
+LakeBtc
+
+You can also put your own site module under this namespace and added here.
+
+=head3 output
+
+customize the output format by giving this argument a sub reference. It will be bind to the event 'output'. Please rever to the event <output>.
+
+   # you can customize the output by giving argument 'output' to the new methold
+    open  my $fh, ">out.txt";
+    $fh->autoflush();
+    my $feed = Finance::Bitcoin::Feed->new(output => sub{
+       my ($self, $site, $timestamp, $currency, $price) = @_;
+       print $fh "the price currency $currency on site $site is $price\n";
+    });
+    # let's go!
+    $feed->run();
+
 
 =head1 EVENTS
 
@@ -101,16 +144,32 @@ This class inherits all events from L<Mojo::EventEmitter> and add the following 
 
 =head2 output
 
+This event has a default subscriber:
+
    #output to the stdout, the default action:
    $feed->on('output', sub { shift; say join " ", @_ } );
 
-   #or you can clear this default action and add yours:
-   $feed->unsubscribe('output');
-   open  my $fh, ">out.txt";
-   $feed->on('output', sub{
-      my ($self, $site, $currency, $price) = @_;
-      say $fh "the price of $site of currency $currency is $price"
-   });
+You can customize the output by giving argument 'output' to the new method
+
+    open  my $fh, ">out.txt";
+    $fh->autoflush();
+    my $feed = Finance::Bitcoin::Feed->new(output => sub{
+       my ($self, $site, $timestamp, $currency, $price) = @_;
+       print $fh "the price currency $currency on site $site is $price\n";
+    });
+    # let's go!
+    $feed->run();
+
+Or you can bind output directly to the feed to get multi outout or you should unscribe this event first.
+
+    $feed->on('output', sub {....})
+
+The arguments of this event is:
+
+$self: the site class object
+timestamp: the timestamp of the data. If no timestamp is given by the site, then the value of it is 0.
+sitename: the site class name
+price: the price
 
 
 =head1 DEBUGGING
@@ -130,6 +189,8 @@ L<Finance::Bitcoin::Feed::Site::Hitbtc>
 L<Finance::Bitcoin::Feed::Site::BtcChina>
 
 L<Finance::Bitcoin::Feed::Site::CoinSetter>
+
+L<Finance::Bitcoin::Feed::Site::LakeBtc>
 
 =head1 AUTHOR
 

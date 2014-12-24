@@ -14,18 +14,17 @@ SYNOPSIS
         
     
         #or custom your stdout
-        my $feed = Finance::Bitcoin::Feed->new;
-        #first unsubscribe the event 'output'
-        $feed->unsubscribe('output');
-        #then listen on 'output' by your callback
         open  my $fh, ">out.txt";
         $fh->autoflush();
-        $feed->on('output', sub{
+        my $feed = Finance::Bitcoin::Feed->new(output => sub{
            my ($self, $site, $currency, $price) = @_;
            print $fh "the price currency $currency on site $site is $price\n";
         });
         # let's go!
         $feed->run();
+    
+        #you can also custom which site you want to connect
+        Finance::Bitcoin::Feed->new(sites => [qw(LakeBtc)])->go;
 
 DESCRIPTION
 
@@ -38,6 +37,8 @@ DESCRIPTION
       <http://btcchina.org/websocket-api-market-data-documentation-en>
 
       * CoinSetter <https://www.coinsetter.com/api/websockets/last>
+
+      * <lakebtc api <https://www.lakebtc.com/s/api>
 
     The default output format to the stdout by this format:
 
@@ -52,9 +53,43 @@ DESCRIPTION
     You can custom your output by listen on the event output and modify the
     data it received.
 
+    Note the followiing sites doesn't give the timestamp. So the timestamp
+    in the result will be 0:
+
+    LakeBtc
+
 METHODS
 
     This class inherits all methods from Mojo::EventEmitter
+
+ new
+
+    This method have two arguments by which you can costumize the behavior
+    of the feed:
+
+  sites
+
+    which sites you want to connect. It is in fact the array reference of
+    module names of Finance::Bitcoin::Feed::Site::*. Now it have 4 modules:
+    Hitbtc BtcChina CoinSetter LakeBtc
+
+    You can also put your own site module under this namespace and added
+    here.
+
+  output
+
+    customize the output format by giving this argument a sub reference. It
+    will be bind to the event 'output'. Please rever to the event <output>.
+
+       # you can customize the output by giving argument 'output' to the new methold
+        open  my $fh, ">out.txt";
+        $fh->autoflush();
+        my $feed = Finance::Bitcoin::Feed->new(output => sub{
+           my ($self, $site, $timestamp, $currency, $price) = @_;
+           print $fh "the price currency $currency on site $site is $price\n";
+        });
+        # let's go!
+        $feed->run();
 
 EVENTS
 
@@ -63,16 +98,33 @@ EVENTS
 
  output
 
+    This event has a default subscriber:
+
        #output to the stdout, the default action:
        $feed->on('output', sub { shift; say join " ", @_ } );
-    
-       #or you can clear this default action and add yours:
-       $feed->unsubscribe('output');
-       open  my $fh, ">out.txt";
-       $feed->on('output', sub{
-          my ($self, $site, $currency, $price) = @_;
-          say $fh "the price of $site of currency $currency is $price"
-       });
+
+    You can customize the output by giving argument 'output' to the new
+    method
+
+        open  my $fh, ">out.txt";
+        $fh->autoflush();
+        my $feed = Finance::Bitcoin::Feed->new(output => sub{
+           my ($self, $site, $timestamp, $currency, $price) = @_;
+           print $fh "the price currency $currency on site $site is $price\n";
+        });
+        # let's go!
+        $feed->run();
+
+    Or you can bind output directly to the feed to get multi outout or you
+    should unscribe this event first.
+
+        $feed->on('output', sub {....})
+
+    The arguments of this event is:
+
+    $self: the site class object timestamp: the timestamp of the data. If
+    no timestamp is given by the site, then the value of it is 0. sitename:
+    the site class name price: the price
 
 DEBUGGING
 
@@ -93,6 +145,8 @@ SEE ALSO
     Finance::Bitcoin::Feed::Site::BtcChina
 
     Finance::Bitcoin::Feed::Site::CoinSetter
+
+    Finance::Bitcoin::Feed::Site::LakeBtc
 
 AUTHOR
 

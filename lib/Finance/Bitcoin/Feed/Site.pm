@@ -4,7 +4,7 @@ use strict;
 use Mojo::Base 'Mojo::EventEmitter';
 use AnyEvent;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 has last_activity_at     => 0;
 has last_activity_period => 300;

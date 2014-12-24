@@ -3,7 +3,7 @@ use strict;
 use Mojo::Base 'Finance::Bitcoin::Feed::Site';
 use Mojo::UserAgent;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 has ws_url => 'wss://websocket.btcchina.com/socket.io/?transport=websocket';
 has 'ua';
@@ -34,7 +34,8 @@ sub go {
 
 }
 
-package Mojo::Transaction::WebSocket::ForBtcChina;    # hidden from PAUSE
+package
+	Mojo::Transaction::WebSocket::ForBtcChina;    # hidden from PAUSE
 
 use JSON;
 use Mojo::Base 'Mojo::Transaction::WebSocket';
@@ -83,7 +84,7 @@ sub configure {
             my ( $self, $data ) = @_;
             $self->owner->emit(
                 'data_out',
-                $data->{date} * 1000, # the unit of timestamp is ms
+                $data->{date} * 1000,    # the unit of timestamp is ms
                 uc( $data->{market} ),
                 $data->{price}
             );

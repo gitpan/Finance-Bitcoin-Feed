@@ -4,6 +4,7 @@ requires 'AnyEvent';
 requires 'Protocol::WebSocket';
 requires 'JSON';
 requires 'Scalar::Util';
+requires 'Carp';
 
 on test => sub {
     requires 'Test::More', '0.96';
